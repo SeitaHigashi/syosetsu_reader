@@ -20,9 +20,6 @@ class SearchContentView extends StatelessWidget{
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Books'),
-      ),
       body: FutureBuilder(
         future: BookList.getRanking(getRankingURL()),
         builder: (ctx, snapshot) {
@@ -105,6 +102,7 @@ class BookList {
     final rankResponse = await http.get(Uri.parse(uri));
     Map<String, String> rankList = {};
     List<String> rankAndNcode = [];
+    debugPrint(rankResponse.body);
     
     if (rankResponse.statusCode == 200) {
       final parsed1 = jsonDecode(rankResponse.body).cast<Map<String, dynamic>>();
