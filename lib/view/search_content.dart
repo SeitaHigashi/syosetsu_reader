@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class SearchContentView extends StatelessWidget{
+class SearchContentView extends StatelessWidget {
   final int typeId;
   static const Map<int, String> searchType = {
     0: '条件検索',
@@ -21,48 +21,41 @@ class SearchContentView extends StatelessWidget{
   Widget build(BuildContext context) {
     return Scaffold(
       body: FutureBuilder(
-        future: BookList.getRanking(getRankingURL()),
-        builder: (ctx, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.error != null) {
-            return Center(
-                child: Text('エラーがおきました')
-            );
-          };
-
-          return ListView.builder(
-            itemCount: BookList.bookData.length,
-            itemBuilder: (context, index) {
-              return SizedBox(
-                height: 50,
-                child: ListTile(
-                  onTap: () {
-                    importBook(BookList.bookData[index].ncode);
-                  },
-                  title: Text(
-                    BookList.bookData[index].title,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    BookList.bookData[index].author
-                  )
-                )
+          future: BookList.getRanking(getRankingURL()),
+          builder: (ctx, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(),
               );
-            },
-          );
-        }
-      ),
+            }
+
+            if (snapshot.error != null) {
+              return Center(child: Text('エラーがおきました'));
+            }
+            ;
+
+            return ListView.builder(
+              itemCount: BookList.bookData.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                    onTap: () {
+                      importBook(BookList.bookData[index].ncode);
+                    },
+                    title: Text(
+                      '${BookList.bookData[index].rank}位 ${BookList.bookData[index].title}',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(BookList.bookData[index].author));
+              },
+            );
+          }),
     );
   }
 
-  String getRankingURL(){
+  String getRankingURL() {
     String result;
-    switch (this.typeId){
+    switch (this.typeId) {
       case 1:
         result = BookList.dayRankingURL();
         break;
@@ -84,39 +77,43 @@ class SearchContentView extends StatelessWidget{
       default:
         result = BookList.dayRankingURL();
         break;
-    } 
+    }
     return result;
   }
 
-  String importBook(String ncode){
-    return 'download is $ncode';
+  importBook(String ncode) {
+    print('download is $ncode');
   }
 }
 
 class BookList {
-  static const String rankingUrl = 'https://api.syosetu.com/rank/rankget/?out=json';
-  static const String bookUrl = 'https://api.syosetu.com/novelapi/api/?of=n-t-w-ga&out=json';
+  static const String rankingUrl =
+      'https://api.syosetu.com/rank/rankget/?out=json';
+  static const String bookUrl =
+      'https://api.syosetu.com/novelapi/api/?of=n-t-w-ga&out=json&lim=300';
   static List<BookData> bookData = [];
-  
+
   static Future<void> getRanking(uri) async {
+    bookData.clear();
     final rankResponse = await http.get(Uri.parse(uri));
     Map<String, String> rankList = {};
-    List<String> rankAndNcode = [];
-    debugPrint(rankResponse.body);
-    
+
     if (rankResponse.statusCode == 200) {
-      final parsed1 = jsonDecode(rankResponse.body).cast<Map<String, dynamic>>();
-      rankList = parsed1.map(
-        (json) =>
-          {'${json["ncode"]}': '${json["rank"]}'}
-        );
-      rankAndNcode = parsed1.map((json) => '${json["rank"]}-${json["ncode"]}').toList();
-      String ncodeJoin = rankAndNcode.map((str) => str.split('-')[1]).join('-');
-      final bookResponse = await http.get(Uri.parse('${bookUrl}&${ncodeJoin}'));
+      final parsed1 = jsonDecode(rankResponse.body);
+      String ncodeJoin = parsed1.map((json) => json["ncode"]).join('-');
+
+      parsed1
+          .forEach((json) => rankList['${json["ncode"]}'] = '${json["rank"]}');
+      final bookResponse = await http
+          .get(Uri.parse('$bookUrl&ncode=${ncodeJoin.toLowerCase()}'));
 
       if (bookResponse.statusCode == 200) {
-        final parsed2 = jsonDecode(rankResponse.body).cast<Map<String, dynamic>>();
-        bookData = parsed2.map<BookData>((json) => BookData.fromJson(json, rankList)).toList();
+        final parsed2 = jsonDecode(bookResponse.body);
+        parsed2.removeAt(0);
+        parsed2.forEach((json) => bookData
+            .add(BookData.fromJson(json, rankList['${json["ncode"]}']!)));
+
+        bookData.sort((a, b) => int.parse(a.rank).compareTo(int.parse(b.rank)));
       } else {
         throw Exception('Failed to load data');
       }
@@ -124,8 +121,6 @@ class BookList {
       throw Exception('Failed to load data');
     }
   }
-
-  String get url => url;
 
   static String dayRankingURL() {
     final DateTime nowdate = DateTime.now();
@@ -159,36 +154,30 @@ class BookData {
   final String author;
   final int storyLength;
 
-  BookData({
-    required this.rank,
-    required this.ncode,
-    required this.title,
-    required this.author,
-    required this.storyLength
-  });
-  
-  factory BookData.fromJson(Map<String, dynamic> json, Map rankList){
+  BookData(
+      {required this.rank,
+      required this.ncode,
+      required this.title,
+      required this.author,
+      required this.storyLength});
+
+  factory BookData.fromJson(Map<String, dynamic> json, String rank) {
     return BookData(
-      ncode: json['ncode'] as String,
-      author: json['writer'] as String,
-      title: json['title'] as String,
-      storyLength: json['general_all_no'] as int,
-      rank: rankList[json['ncode']]);
+        ncode: json['ncode'] as String,
+        author: json['writer'] as String,
+        title: json['title'] as String,
+        storyLength: json['general_all_no'] as int,
+        rank: rank);
   }
 }
 
-class Ranking{
+class Ranking {
   final String ncode;
   final int rank;
 
-  Ranking({
-    required this.ncode,
-    required this.rank
-  });
+  Ranking({required this.ncode, required this.rank});
 
-  factory Ranking.fromJson(Map<String, dynamic> json){
-    return Ranking(
-      ncode: json['ncode'] as String,
-      rank: json['rank'] as int);
+  factory Ranking.fromJson(Map<String, dynamic> json) {
+    return Ranking(ncode: json['ncode'] as String, rank: json['rank'] as int);
   }
 }
