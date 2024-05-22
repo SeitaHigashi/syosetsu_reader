@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
-import 'model/database.dart';
+import 'package:syosetsu_reader/infrastracture/database.dart';
 import 'view/bookshelf.dart';
 import 'view/search.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -17,41 +22,23 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: '小説リーダー',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyStatefulWidget(),
+      home: const MainWidget(),
     );
   }
 }
 
-class MyStatefulWidget extends StatefulWidget {
-  const MyStatefulWidget({Key? key}) : super(key: key);
+class MainWidget extends ConsumerStatefulWidget {
+  const MainWidget({super.key});
 
   @override
-  State<MyStatefulWidget> createState() => _MyStatefulWidgetState();
+  _MainWidgetState createState() => _MainWidgetState();
 }
 
-class _MyStatefulWidgetState extends State<MyStatefulWidget> {
-  static const _screens = [
-    BookshelfView(),
-    SearchView()
-  ];
+class _MainWidgetState extends ConsumerState<MainWidget> {
+  final _screens = [BookshelfView(), SearchView()];
 
   int _selectedIndex = 0;
 
@@ -63,8 +50,24 @@ class _MyStatefulWidgetState extends State<MyStatefulWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final dataBaseConnectionProviderNotifier =
+        ref.watch(databaseConnectionProvider.notifier);
     return Scaffold(
-        body: _screens[_selectedIndex],
+        body: FutureBuilder(
+            future: dataBaseConnectionProviderNotifier.build(),
+            builder: (ctx, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+
+              if (snapshot.error != null) {
+                debugPrint(snapshot.error.toString());
+                return const Center(child: Text('エラーがおきました'));
+              }
+              return _screens[_selectedIndex];
+            }),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
